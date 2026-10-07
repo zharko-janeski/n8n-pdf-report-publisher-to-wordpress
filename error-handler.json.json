@@ -1,0 +1,91 @@
+{
+  "name": "SHIELD-PIPELINE - Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "5c75329a-8aec-4261-b4f7-fb4950e275f3",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ADMIN_CHAT_ID = '8009416199';\n\nconst d = $input.first().json || {};\nconst err = d.error || (d.execution || {}).error || {};\nconst exec = d.execution || {};\n\nconst alertText = [\n  '<b>SHIELD-PIPELINE failure</b>',\n  '<b>Workflow:</b> ' + (d.workflow ? d.workflow.name : 'unknown'),\n  '<b>Node:</b> ' + (exec.lastNodeExecuted || (err.node ? err.node.name : 'unknown')),\n  '<b>Error:</b> ' + String(err.message || 'see execution log').slice(0, 600),\n  '<b>Execution:</b> ' + (exec.url || 'n/a')\n].join('\\n');\n\nreturn [{ json: { chatId: ADMIN_CHAT_ID, alertText: alertText } }];"
+      },
+      "id": "669d1a3c-1799-4cdf-85e1-445c0cc484d4",
+      "name": "Format Error Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.alertText }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "e129898f-b175-43b5-880f-3e065a485d2b",
+      "name": "Telegram Admin Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        -32
+      ],
+      "webhookId": "7c8d4d78-07dd-4854-88cb-c56151115951",
+      "credentials": {
+        "telegramApi": {
+          "id": "wJvyeoDzCjpjmIRr",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Telegram Admin Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b2abc1b3-5520-44a3-a826-cbc612ae285d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d509a93c1d920dbbcecfc6a349d71a9da38a9b8d8cbe82c410d04fed44dfac26"
+  },
+  "id": "tJBLqpepva9rq1v0",
+  "tags": []
+}
