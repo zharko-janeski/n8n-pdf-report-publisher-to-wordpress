@@ -1,0 +1,485 @@
+{
+  "name": "SHIELD-PIPELINE - Main",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_DRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "WordPress-Pipeline",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/YOUR_DRIVE_FOLDER_ID"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "c7135b74-c6dd-4a10-acc6-bc63add3cafd",
+      "name": "PDF Added to Drive Folder",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "2In7OTcVzKHrxgFf",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-is-pdf",
+              "leftValue": "={{ $json.mimeType }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0d85016c-8383-43c0-a2ff-2830f543e937",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        272
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a5d0e9c4-a6d7-4a2d-8b3b-fe7c289fbdf6",
+      "name": "Ignore Non-PDF",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        32,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }} ",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "68acf140-839a-4072-a585-52a13df111dc",
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        240,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "2In7OTcVzKHrxgFf",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfg-wpurl",
+              "name": "wpBaseUrl",
+              "value": "your-wordpress-site.com",
+              "type": "string"
+            },
+            {
+              "id": "cfg-wpcat",
+              "name": "wpCategoryIds",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "cfg-model",
+              "name": "geminiModel",
+              "value": "gemini-3.8-flash",
+              "type": "string"
+            },
+            {
+              "id": "cfg-channel",
+              "name": "tgChannelId",
+              "value": "YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "cfg-admin",
+              "name": "adminChatId",
+              "value": "YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "cfg-schema",
+              "name": "geminiSchema",
+              "value": "{\"type\":\"OBJECT\",\"properties\":{\"post_title\":{\"type\":\"STRING\"},\"ticker\":{\"type\":\"STRING\"},\"broker\":{\"type\":\"STRING\"},\"report_type\":{\"type\":\"STRING\",\"enum\":[\"Initiation\",\"Upgrade\",\"Downgrade\",\"Earnings Review\",\"Macro\",\"Thematic\",\"Other\"]},\"wp_post_html\":{\"type\":\"STRING\"},\"tg_summary\":{\"type\":\"STRING\"},\"categories\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\",\"enum\":[\"Equity Research\",\"Macro\",\"Fixed Income\",\"Commodities\",\"Crypto\",\"Economics\"]}},\"tags\":{\"type\":\"ARRAY\",\"items\":{\"type\":\"STRING\"}}},\"required\":[\"post_title\",\"ticker\",\"broker\",\"report_type\",\"wp_post_html\",\"tg_summary\",\"categories\",\"tags\"],\"propertyOrdering\":[\"post_title\",\"ticker\",\"broker\",\"report_type\",\"wp_post_html\",\"tg_summary\",\"categories\",\"tags\"]}",
+              "type": "string"
+            },
+            {
+              "id": "cfg-prompt",
+              "name": "geminiPrompt",
+              "value": "You are a senior financial editor converting broker research reports (PDF) into publication-ready content. Read the attached PDF and return ONLY a JSON object matching the provided schema - no markdown fences, no commentary.\n\nFIELD RULES\n1. post_title: max 90 chars. Format: 'TICKER - <specific thesis or rating action> (Broker)'. If no ticker, use the company name.\n2. ticker: primary ticker symbol only (e.g. AAPL), else empty string.\n3. broker: research house or analyst team, else 'Unknown'.\n4. report_type: exactly one of: Initiation, Upgrade, Downgrade, Earnings Review, Macro, Thematic, Other.\n5. wp_post_html: semantic HTML only. Allowed tags: h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, strong, em, blockquote, a. No inline styles, no class/id attributes, no markdown, no scripts. Structure: (a) opening <p> executive overview, 2-3 sentences; (b) <h2>Key Takeaways</h2> with 4-6 bullets; (c) <h2>Financial Summary</h2> with at least one real data table (rating, price target, estimates, multiples - exact figures from the report, use '-' if missing); (d) 1-3 further sections covering thesis, catalysts, risks; (e) closing line: <p><em>Source: {broker} research report. For information purposes only - not investment advice.</em></p>. Length 500-900 words. Never invent numbers.\n6. tg_summary: STRICTLY under 2,000 characters, Telegram HTML using ONLY <b>, <i>, and <a href=\"...\">. No markdown asterisks. Format: bold headline; 3-5 crisp lines with rating, price target, upside %, and key numbers; one-line takeaway.\n7. categories: 1-3 from exactly: Equity Research, Macro, Fixed Income, Commodities, Crypto, Economics.\n8. tags: 5-8 short lowercase tags.\n\nIf the PDF is not a research report or is unreadable, still return every field, set report_type to 'Other', and describe what the document actually contains.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "da69dcd6-4113-4022-8514-6852dc005e23",
+      "name": "Pipeline Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.geminiModel }}:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [ { inlineData: { mimeType: 'application/pdf', data: $json.pdfBase64 } }, { text: $json.geminiPrompt } ] }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: JSON.parse($json.geminiSchema) } }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "c2b2b66c-e174-4ad4-8eee-5fd408ced310",
+      "name": "Gemini 2.5 Structured Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1024,
+        304
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ZLB2CThjLc8607M9",
+          "name": "Gemini"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\n\nif (resp.error) throw new Error('Gemini API error: ' + (resp.error.message || JSON.stringify(resp.error).slice(0, 300)));\nif (resp.promptFeedback && resp.promptFeedback.blockReason) throw new Error('Gemini blocked the prompt: ' + resp.promptFeedback.blockReason);\n\nconst cand = (resp.candidates || [])[0];\nif (!cand) throw new Error('Gemini returned no candidates.');\nif (cand.finishReason && cand.finishReason !== 'STOP') {\n  throw new Error('Gemini finishReason=' + cand.finishReason + ' (likely MAX_TOKENS - raise output budget or shorten prompt).');\n}\nconst raw = (cand.content && cand.content.parts ? cand.content.parts : []).map(p => p.text || '').join('');\nif (!raw.trim()) throw new Error('Gemini returned empty text.');\n\nlet data;\ntry {\n  data = JSON.parse(raw.trim().replace(/^```(?:json)?\\s*/i, '').replace(/```\\s*$/i, ''));\n} catch (e) {\n  throw new Error('Gemini output was not valid JSON: ' + raw.slice(0, 300));\n}\n\nfor (const f of ['post_title', 'wp_post_html', 'tg_summary']) {\n  if (typeof data[f] !== 'string' || !data[f].trim()) throw new Error('Missing required Gemini field: ' + f);\n}\n\n// Telegram HTML sanitizer\nlet tg = String(data.tg_summary)\n  .replace(/<br\\s*\\/?>/gi, '\\n')   // FIX: <br>/<br/> -> real newline (Telegram HTML has no <br>)\n  .replace(/&(?!(amp|lt|gt|quot|#\\d+);)/gi, '&amp;')\n  .replace(/<(?!\\/?(?:b|i|u|s|a|code|pre)(?=[\\s\\/>]))/gi, '&lt;');\nif (tg.length > 2000) {\n  tg = tg.slice(0, 1990).replace(/<[^>]*$/, '').trimEnd() + '...';\n}\n\nconst cfg = $('Pipeline Config').first().json;\nconst file = $('PDF Added to Drive Folder').first().json;\nconst plain = tg.replace(/<[^>]+>/g, '').replace(/\\s+/g, ' ').trim();\n\nreturn [{\n  json: {\n    sourceFileName: file.name || 'unknown.pdf',\n    driveFileId: file.id || null,\n    post_title: data.post_title.trim(),\n    ticker: (data.ticker || '').trim(),\n    broker: (data.broker || '').trim(),\n    report_type: data.report_type || 'Other',\n    wp_post_html: data.wp_post_html,\n    tg_summary: tg,\n    excerpt_plain: plain.slice(0, 240),\n    categories: Array.isArray(data.categories) ? data.categories : [],\n    tags: Array.isArray(data.tags) ? data.tags : [],\n    wpBaseUrl: String(cfg.wpBaseUrl).replace(/\\/+$/, ''),\n    wpCategoryIds: cfg.wpCategoryIds || '',\n    tgChannelId: cfg.tgChannelId\n  }\n}];"
+      },
+      "id": "7e09feed-1f52-41df-a0a6-1d219ff616bc",
+      "name": "Parse & Validate Gemini JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.wpBaseUrl + '/wp-json/wp/v2/posts' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $json.post_title, content: $json.wp_post_html, excerpt: $json.excerpt_plain, status: 'draft', categories: $json.wpCategoryIds ? String($json.wpCategoryIds).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) : [] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "153a0437-2ee3-4596-a7bc-9e79d2f8d53c",
+      "name": "WP Create Draft Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1632,
+        304
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "IZWJF4Oxw8UGo13i",
+          "name": "WP - thefight staging (Editor)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst wp = $input.first().json;\nconst p = $('Parse & Validate Gemini JSON').first().json;\n\nconst esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst title = esc(p.post_title);\nconst meta = [p.ticker, p.broker, p.report_type].filter(Boolean).map(esc).join(' | ');\nconst previewLink = p.wpBaseUrl + '/?p=' + wp.id + '&preview=true';\n\nconst message = [\n  '<b>' + title + '</b>',\n  meta ? '<i>' + meta + '</i>' : null,\n  '',\n  p.tg_summary,\n  '',\n  '<b>WP Draft #' + wp.id + '</b> - <a href=\"' + previewLink + '\">Preview draft</a>',\n  '<i>File: ' + esc(p.sourceFileName) + ' | status: ' + esc(wp.status) + '</i>'\n].filter(x => x !== null).join('\\n');\n\nreturn [{ json: {\n  channelId: p.tgChannelId,\n  message: message,\n  postId: wp.id,\n  previewLink: previewLink,\n  driveFileId: p.driveFileId\n} }];"
+      },
+      "id": "4ae8d42f-5dc1-4384-9e54-02c99011bf21",
+      "name": "Build Notification Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.channelId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "f1681c3b-56f0-4db6-a20b-5afc846a0270",
+      "name": "Telegram Channel Bulletin",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2096,
+        320
+      ],
+      "webhookId": "eb6a0b8d-19b8-4132-863d-f26a1bae278f",
+      "credentials": {
+        "telegramApi": {
+          "id": "wJvyeoDzCjpjmIRr",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.first().json || {};\nconst err = e.error || {};\nconst exec = e.execution || {};\n\nlet fileName = 'n/a';\nlet adminChatId = null;\ntry { fileName = $('PDF Added to Drive Folder').first().json.name || 'n/a'; } catch (_) {}\ntry { adminChatId = $('Pipeline Config').first().json.adminChatId; } catch (_) {}\n\nconst alertText = [\n  '<b>SHIELD-PIPELINE failure</b>',\n  '<b>File:</b> ' + fileName,\n  '<b>Node:</b> ' + (exec.lastNodeExecuted || 'unknown'),\n  '<b>Error:</b> ' + String(err.message || JSON.stringify(err).slice(0, 300) || 'unknown').slice(0, 600),\n  '<b>Execution:</b> ' + (exec.url || 'n/a')\n].join('\\n');\n\nreturn [{ json: { adminChatId: adminChatId, alertText: alertText } }];"
+      },
+      "id": "d40adf2c-0d14-40e3-9104-75ec1360634b",
+      "name": "Format Admin Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.adminChatId || 'REPLACE_WITH_ADMIN_CHAT_ID' }}",
+        "text": "={{ $json.alertText }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "87c00a82-169f-4898-a0ea-dedad69d9899",
+      "name": "Telegram Admin Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        864
+      ],
+      "webhookId": "ee9f95e4-1f56-43ab-94de-d77c9665c240",
+      "credentials": {
+        "telegramApi": {
+          "id": "wJvyeoDzCjpjmIRr",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n\nconst item = $input.first();\n\n// Preferred: buffer via n8n helper (works even in filesystem binary mode)\nlet buffer = null;\ntry {\n  buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n} catch (_) {}\n\n// Fallback: base64 string straight off the binary object\nif (!buffer || buffer.length === 0) {\n  const b64 = item.binary?.data?.data;\n  if (!b64) throw new Error('PDF binary not found in property \"data\" — check Download PDF node');\n  buffer = Buffer.from(b64, 'base64');\n}\n\nif (buffer.length < 500) {\n  throw new Error('PDF buffer suspiciously small (' + buffer.length + ' bytes) — download likely failed');\n}\n\nreturn [{\n  json: {\n    pdfBase64: buffer.toString('base64'),\n    pdfBytes: buffer.length,\n    pdfName: item.binary?.data?.fileName || 'unknown.pdf'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        304
+      ],
+      "id": "cb1edae1-b8bb-443b-b513-82d71d9c3998",
+      "name": "PDF to Base64"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "PDF Added to Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore Non-PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "PDF to Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline Config": {
+      "main": [
+        [
+          {
+            "node": "Gemini 2.5 Structured Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Structured Extraction": {
+      "main": [
+        [
+          {
+            "node": "Parse & Validate Gemini JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Admin Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Validate Gemini JSON": {
+      "main": [
+        [
+          {
+            "node": "WP Create Draft Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WP Create Draft Post": {
+      "main": [
+        [
+          {
+            "node": "Build Notification Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Admin Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Notification Payload": {
+      "main": [
+        [
+          {
+            "node": "Telegram Channel Bulletin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Admin Alert": {
+      "main": [
+        [
+          {
+            "node": "Telegram Admin Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF to Base64": {
+      "main": [
+        [
+          {
+            "node": "Pipeline Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "tJBLqpepva9rq1v0",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "f652b98f-40b1-430a-853a-3a7a78e9eea0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d509a93c1d920dbbcecfc6a349d71a9da38a9b8d8cbe82c410d04fed44dfac26"
+  },
+  "id": "anppueXs9i5ePb2h",
+  "tags": []
+}
